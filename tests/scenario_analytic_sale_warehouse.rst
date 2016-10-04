@@ -4,12 +4,14 @@ Analytic Sale Warehouse Scenario
 
 Imports::
 
-    >>> import datetime
-    >>> from dateutil.relativedelta import relativedelta
     >>> from decimal import Decimal
-    >>> from operator import attrgetter
     >>> from proteus import config, Model, Wizard
-    >>> today = datetime.date.today()
+    >>> from trytond.modules.company.tests.tools import create_company, \
+    ...     get_company
+    >>> from trytond.modules.account.tests.tools import create_chart, \
+    ...     get_accounts
+    >>> from trytond.modules.account_invoice.tests.tools import \
+    ...     create_payment_term
 
 
 Create database::
@@ -20,37 +22,17 @@ Create database::
 
 Install analytic_sale_warehouse::
 
-    >>> Module = Model.get('ir.module.module')
-    >>> sale_module, = Module.find([('name', '=', 'analytic_sale_warehouse')])
-    >>> Module.install([sale_module.id], config.context)
-    >>> Wizard('ir.module.module.install_upgrade').execute('upgrade')
+    >>> Module = Model.get('ir.module')
+    >>> analytic_sale_module, = Module.find(
+    ...     [('name', '=', 'analytic_sale_warehouse')])
+    >>> analytic_sale_module.click('install')
+    >>> Wizard('ir.module.install_upgrade').execute('upgrade')
 
 
 Create company::
 
-    >>> Currency = Model.get('currency.currency')
-    >>> CurrencyRate = Model.get('currency.currency.rate')
-    >>> currencies = Currency.find([('code', '=', 'USD')])
-    >>> if not currencies:
-    ...     currency = Currency(name='U.S. Dollar', symbol='$', code='USD',
-    ...         rounding=Decimal('0.01'), mon_grouping='[3, 3, 0]',
-    ...         mon_decimal_point='.', mon_thousands_sep=',')
-    ...     currency.save()
-    ...     CurrencyRate(date=today + relativedelta(month=1, day=1),
-    ...         rate=Decimal('1.0'), currency=currency).save()
-    ... else:
-    ...     currency, = currencies
-    >>> Company = Model.get('company.company')
-    >>> Party = Model.get('party.party')
-    >>> company_config = Wizard('company.company.config')
-    >>> company_config.execute('company')
-    >>> company = company_config.form
-    >>> party = Party(name='Dunder Mifflin')
-    >>> party.save()
-    >>> company.party = party
-    >>> company.currency = currency
-    >>> company_config.execute('add')
-    >>> company, = Company.find([])
+    >>> _ = create_company()
+    >>> company = get_company()
 
 
 Reload the context::
@@ -73,43 +55,10 @@ Create sale user::
 
 Create chart of accounts::
 
-    >>> AccountTemplate = Model.get('account.account.template')
-    >>> Account = Model.get('account.account')
-    >>> Journal = Model.get('account.journal')
-    >>> account_template, = AccountTemplate.find([('parent', '=', None)])
-    >>> create_chart = Wizard('account.create_chart')
-    >>> create_chart.execute('account')
-    >>> create_chart.form.account_template = account_template
-    >>> create_chart.form.company = company
-    >>> create_chart.execute('create_account')
-    >>> receivable, = Account.find([
-    ...         ('kind', '=', 'receivable'),
-    ...         ('company', '=', company.id),
-    ...         ])
-    >>> payable, = Account.find([
-    ...         ('kind', '=', 'payable'),
-    ...         ('company', '=', company.id),
-    ...         ])
-    >>> revenue, = Account.find([
-    ...         ('kind', '=', 'revenue'),
-    ...         ('company', '=', company.id),
-    ...         ])
-    >>> expense, = Account.find([
-    ...         ('kind', '=', 'expense'),
-    ...         ('company', '=', company.id),
-    ...         ])
-    >>> create_chart.form.account_receivable = receivable
-    >>> create_chart.form.account_payable = payable
-    >>> create_chart.execute('create_properties')
-    >>> cash, = Account.find([
-    ...         ('kind', '=', 'other'),
-    ...         ('name', '=', 'Main Cash'),
-    ...         ('company', '=', company.id),
-    ...         ])
-    >>> cash_journal, = Journal.find([('type', '=', 'cash')])
-    >>> cash_journal.credit_account = cash
-    >>> cash_journal.debit_account = cash
-    >>> cash_journal.save()
+    >>> _ = create_chart(company)
+    >>> accounts = get_accounts(company)
+    >>> revenue = accounts['revenue']
+    >>> expense = accounts['expense']
 
 
 Create an analytic hierarchy::
@@ -175,11 +124,7 @@ Create product::
 
 Create payment term::
 
-    >>> PaymentTerm = Model.get('account.invoice.payment_term')
-    >>> PaymentTermLine = Model.get('account.invoice.payment_term.line')
-    >>> payment_term = PaymentTerm(name='Direct')
-    >>> payment_term_line = PaymentTermLine(type='remainder', days=0)
-    >>> payment_term.lines.append(payment_term_line)
+    >>> payment_term = create_payment_term()
     >>> payment_term.save()
 
 
@@ -198,13 +143,20 @@ Create a warehouse with assigned analytic accounts::
     ...             'input_location': input_loc2.id,
     ...             'output_location': output_loc2.id,
     ...             'storage_location': storage_loc2.id,
-    ...             'analytic_account_%s' % root1.id: root1.childs[0].id,
-    ...             'analytic_account_%s' % root2.id: root2.childs[-1].id,
     ...             }], config.context)
     >>> warehouse2 = Location(warehouse2)
-    >>> warehouse2.analytic_accounts.accounts[0].name
+    >>> company_location = warehouse2.companies.new()
+    >>> len(company_location.analytic_accounts)
+    2
+    >>> for entry in company_location.analytic_accounts:
+    ...     if entry.root.id == root1.id:
+    ...         entry.account = root1.childs[0]
+    ...     else:
+    ...         entry.account = root2.childs[-1]
+    >>> warehouse2.save()
+    >>> warehouse2.companies[0].analytic_accounts[0].account.name
     u'Account 1.1'
-    >>> warehouse2.analytic_accounts.accounts[1].name
+    >>> warehouse2.companies[0].analytic_accounts[1].account.name
     u'Account 2.2'
 
 
@@ -222,8 +174,10 @@ Prepare sale to warehouse without analytic accounts::
     >>> sale_line.product = product
     >>> sale_line.quantity = 2.0
     >>> sale.save()
-    >>> len(sale.lines[0].analytic_accounts.accounts)
-    0
+    >>> len(sale.lines[0].analytic_accounts)
+    2
+    >>> all(e.account == None for e in sale.lines[0].analytic_accounts)
+    True
 
 
 Prepare sale to warehouse with analytic accounts::
@@ -237,9 +191,9 @@ Prepare sale to warehouse with analytic accounts::
     >>> sale_line.product = product
     >>> sale_line.quantity = 3.0
     >>> sale.save()
-    >>> sale.lines[0].analytic_accounts.accounts[0].name
+    >>> sale.lines[0].analytic_accounts[0].account.name
     u'Account 1.1'
-    >>> sale.lines[0].analytic_accounts.accounts[1].name
+    >>> sale.lines[0].analytic_accounts[1].account.name
     u'Account 2.2'
 
 
@@ -259,9 +213,11 @@ analytic account before add second line::
     >>> sale_line.product = product
     >>> sale_line.quantity = 5.0
     >>> sale.save()
-    >>> len(sale.lines[0].analytic_accounts.accounts)
-    0
-    >>> sale.lines[1].analytic_accounts.accounts[0].name
+    >>> len(sale.lines[0].analytic_accounts)
+    2
+    >>> all(e.account == None for e in sale.lines[0].analytic_accounts)
+    True
+    >>> sale.lines[1].analytic_accounts[0].account.name
     u'Account 1.1'
-    >>> sale.lines[1].analytic_accounts.accounts[1].name
+    >>> sale.lines[1].analytic_accounts[1].account.name
     u'Account 2.2'
