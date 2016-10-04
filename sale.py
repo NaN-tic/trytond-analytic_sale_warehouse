@@ -4,11 +4,25 @@ from trytond.pool import Pool, PoolMeta
 from trytond.pyson import Eval
 from trytond.transaction import Transaction
 
-__all__ = ['Sale', 'SaleLine']
-__metaclass__ = PoolMeta
+__all__ = ['Location', 'Sale', 'SaleLine']
+
+
+class Location:
+    __metaclass__ = PoolMeta
+    __name__ = 'stock.location'
+
+    @classmethod
+    def enabled_location_types(cls):
+        # Show companies field (with analytic accounts configuration) in
+        # warehouse locations
+        enabled_types = super(Location, cls).enabled_location_types()
+        if 'warehouse' not in enabled_types:
+            enabled_types.append('warehouse')
+        return enabled_types
 
 
 class Sale:
+    __metaclass__ = PoolMeta
     __name__ = 'sale.sale'
 
     @classmethod
@@ -18,32 +32,28 @@ class Sale:
 
 
 class SaleLine:
+    __metaclass__ = PoolMeta
     __name__ = 'sale.line'
 
     @classmethod
-    def default_get(cls, fields, with_rec_name=True):
+    def default_analytic_accounts(cls):
         pool = Pool()
         Location = pool.get('stock.location')
+        Sale = pool.get('sale.sale')
 
+        entries = super(SaleLine, cls).default_analytic_accounts()
+
+        company_id = Sale.default_company()
         warehouse = Transaction().context.get('warehouse')
         if warehouse:
-            warehouse = Location(warehouse)
-
-        default_values = super(SaleLine, cls).default_get(fields,
-            with_rec_name=with_rec_name)
-        if (not warehouse or not warehouse.analytic_accounts
-                or not warehouse.analytic_accounts.accounts):
-            return default_values
-
-        account_by_root = dict((a.root.id, a)
-            for a in warehouse.analytic_accounts.accounts)
-        analytic_account_fields = [f for f in fields
-            if f.startswith('analytic_account_')]
-        for fname in analytic_account_fields:
-            root_id = int(fname[17:])
-            if root_id in account_by_root:
-                default_values[fname] = account_by_root[root_id].id
-                if with_rec_name:
-                    default_values[fname + '.rec_name'] = (
-                        account_by_root[root_id].rec_name)
-        return default_values
+            root2account = {}
+            for location_company in Location(warehouse).companies:
+                if location_company.company.id != company_id:
+                    continue
+                for entry in location_company.analytic_accounts:
+                    root2account[entry.root.id] = entry.account.id
+            if root2account:
+                for entry in entries:
+                    if entry['root'] in root2account:
+                        entry['account'] = root2account[entry['root']]
+        return entries
