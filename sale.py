@@ -7,8 +7,7 @@ from trytond.transaction import Transaction
 __all__ = ['Location', 'Sale', 'SaleLine']
 
 
-class Location:
-    __metaclass__ = PoolMeta
+class Location(metaclass=PoolMeta):
     __name__ = 'stock.location'
 
     @classmethod
@@ -21,8 +20,7 @@ class Location:
         return enabled_types
 
 
-class Sale:
-    __metaclass__ = PoolMeta
+class Sale(metaclass=PoolMeta):
     __name__ = 'sale.sale'
 
     @classmethod
@@ -31,8 +29,7 @@ class Sale:
         cls.lines.context['warehouse'] = Eval('warehouse')
 
 
-class SaleLine:
-    __metaclass__ = PoolMeta
+class SaleLine(metaclass=PoolMeta):
     __name__ = 'sale.line'
 
     @classmethod

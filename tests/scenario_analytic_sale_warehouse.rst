@@ -144,9 +144,9 @@ Create a warehouse with assigned analytic accounts::
     ...         entry.account = root2.childs[-1]
     >>> warehouse2.save()
     >>> warehouse2.companies[0].analytic_accounts[0].account.name
-    u'Account 1.1'
+    'Account 1.1'
     >>> warehouse2.companies[0].analytic_accounts[1].account.name
-    u'Account 2.2'
+    'Account 2.2'
 
 
 Prepare sale to warehouse without analytic accounts::
@@ -181,9 +181,9 @@ Prepare sale to warehouse with analytic accounts::
     >>> sale_line.quantity = 3.0
     >>> sale.save()
     >>> sale.lines[0].analytic_accounts[0].account.name
-    u'Account 1.1'
+    'Account 1.1'
     >>> sale.lines[0].analytic_accounts[1].account.name
-    u'Account 2.2'
+    'Account 2.2'
 
 
 Prepare sale without warehouse when add first line and set warehouse with
@@ -207,6 +207,6 @@ analytic account before add second line::
     >>> all(e.account == None for e in sale.lines[0].analytic_accounts)
     True
     >>> sale.lines[1].analytic_accounts[0].account.name
-    u'Account 1.1'
+    'Account 1.1'
     >>> sale.lines[1].analytic_accounts[1].account.name
-    u'Account 2.2'
+    'Account 2.2'
