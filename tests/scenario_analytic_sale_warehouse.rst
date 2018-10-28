@@ -6,6 +6,7 @@ Imports::
 
     >>> from decimal import Decimal
     >>> from proteus import config, Model, Wizard
+    >>> from trytond.tests.tools import activate_modules
     >>> from trytond.modules.company.tests.tools import create_company, \
     ...     get_company
     >>> from trytond.modules.account.tests.tools import create_chart, \
@@ -14,20 +15,9 @@ Imports::
     ...     create_payment_term
 
 
-Create database::
+Activate analytic_sale_warehouse::
 
-    >>> config = config.set_trytond()
-    >>> config.pool.test = True
-
-
-Install analytic_sale_warehouse::
-
-    >>> Module = Model.get('ir.module')
-    >>> analytic_sale_module, = Module.find(
-    ...     [('name', '=', 'analytic_sale_warehouse')])
-    >>> analytic_sale_module.click('install')
-    >>> Wizard('ir.module.install_upgrade').execute('upgrade')
-
+    >>> config = activate_modules('analytic_sale_warehouse')
 
 Create company::
 
