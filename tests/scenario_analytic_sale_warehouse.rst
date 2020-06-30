@@ -102,6 +102,7 @@ Create product::
     >>> template.account_category = account_category
     >>> template.default_uom = unit
     >>> template.type = 'goods'
+    >>> template.salable = True
     >>> template.list_price = Decimal('10')
     >>> template.cost_price_method = 'fixed'
     >>> template.save()
