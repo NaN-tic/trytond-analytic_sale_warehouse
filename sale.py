@@ -48,7 +48,8 @@ class SaleLine(metaclass=PoolMeta):
                 if location_company.company.id != company_id:
                     continue
                 for entry in location_company.analytic_accounts:
-                    root2account[entry.root.id] = entry.account.id
+                    root2account[entry.root.id] = (entry.account
+                        and entry.account.id or None)
             if root2account:
                 for entry in entries:
                     if entry['root'] in root2account:
